@@ -7,6 +7,12 @@
         ORG     0FFFEh
         DC16    init                    ; set reset vector to 'init' label
 
+	org	0x1c00
+; LCD numbers   0     1     2     3     4     5     6     7     8     9     0crss 1cntr 4clsd 7diag
+byteH   db      0xFC, 0x60, 0xDB, 0xF3, 0x67, 0xB7, 0xBF, 0xE0, 0xFF, 0xE7, 0xFC, 0x00, 0x61, 0x83
+byteL   db      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x28, 0x50, 0x20, 0x28
+
+
         RSEG    CSTACK                  ; pre-declaration of segment
         RSEG    CODE                    ; place program in 'CODE' segment
 
@@ -14,6 +20,67 @@ init:   MOV     #SFE(CSTACK), SP        ; set up stack
 
 main:   NOP                             ; main program
         MOV.W   #WDTPW+WDTHOLD,&WDTCTL  ; Stop watchdog timer
-        JMP $                           ; jump to current location '$'
-                                        ; (endless loop)
-        END
+
+	call	#setup
+
+mainloop:
+	call	#displayTitle
+
+
+	jmp	mainloop
+
+        JMP 	fin
+
+
+
+
+
+displayTitle:
+	; C
+	mov.b	#10011100b,&0xA29
+	mov.b	#00000000b,&0xA2A
+	; P
+	mov.b	#11001111b,&0xA25
+	mov.b	#00000000b,&0xA26
+	; L
+	mov.b	#00011100b,&0xA23
+	mov.b	#00000000b,&0xA24
+	; E
+	mov.b	#10011110b,&0xA32
+	mov.b	#00000000b,&0xA33
+	; T
+	mov.b	#10000000b,&0xA2E
+	mov.b	#01010000b,&0xA2F
+	; R
+	mov.b	#11001111b,&0xA27
+	mov.b	#00000010b,&0xA28
+	ret
+
+setup:
+; Setup LCD
+	; Enable segments
+	mov.w	#0xFFFF,&LCDCPCTL0
+	mov.w	#0xFFFF,&LCDCPCTL1
+	mov.w	#0xFFFF,&LCDCPCTL2
+	; Unlock GPIO
+        bic.w	#LOCKLPM5,&PM5CTL0
+	; Initialize LCD
+        mov.w	#0x041e,&LCDCCTL0
+	; Enable charge pump
+        mov.w	#0x0208,&LCDCVCTL
+	; Clock sync
+        mov.w	#0x8000,&LCDCCPCTL
+	; Clear LCD memory
+        mov.w	#2,&LCDCMEMCTL
+	; Turn LCD on
+        bis.w	#1,&LCDCCTL0
+; Setup buttons
+// TODO: set up buttons
+
+	ret
+
+
+
+
+fin:	nop
+	end
