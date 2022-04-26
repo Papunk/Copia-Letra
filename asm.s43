@@ -7,13 +7,13 @@
         ORG     0FFFEh
         DC16    init                    ; set reset vector to 'init' label
 
-	org	0x1c00
+	org	0x1C00
 ; LCD numbers   0     1     2     3     4     5     6     7     8     9     0crss 1cntr 4clsd 7diag
 byteH   db      0xFC, 0x60, 0xDB, 0xF3, 0x67, 0xB7, 0xBF, 0xE0, 0xFF, 0xE7, 0xFC, 0x00, 0x61, 0x83
 byteL   db      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x28, 0x50, 0x20, 0x28
-; Random letter bank
-;randH	db
-;randL	db
+; Rndm letters	P	   F	      J	         G
+randH	db	11001111b, 10001111b, 11111000b, 10111101b
+randL	db	00000000b, 00000000b, 00000000b, 00000000b
 ; ISRs
 	org	0xFFDA
 	dc16	portOneISR
@@ -24,19 +24,20 @@ byteL   db      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x28
 
 init:   MOV     #SFE(CSTACK), SP        ; set up stack
 
+
 main:
 	call	#setupApp
-
-mainloop:
 	call	#displayTitle
+mainloop:
 	; If state is 1 (game), go to game. Else keep displaying the title.
 	cmp	#1,R15
 	jz	game
 	jmp	mainloop
 
+
 game:
 	call	#setupGame
-
+	call	#clearDisplay	// just for testing
 gameLoop:
 // game subroutine calls go here
 	call	#displayGameState
@@ -44,6 +45,7 @@ gameLoop:
 	cmp	#2,R15
 	jz	endLoop
 	jmp	gameLoop
+
 
 endLoop:
 // keep displaying the end state + the led depending on game result
@@ -60,10 +62,11 @@ endLoop:
 
 // TODO: set up initial values
 setupGame:
-
+	ret
 
 // TODO: display the randomly chosen letter, the current state of the attempt, and the current time
 displayGameState:
+	ret
 
 
 ; ---------------------------------------------------------------------------------------
@@ -102,6 +105,23 @@ setupApp:
         mov.w   #WDTPW+WDTHOLD,&WDTCTL
 ; Setup state
 	mov.w	#0,R15
+; Setup buttons
+	; Set PxSel0 and PxSel1 as digital I/O
+	bic.b   #0xFF,&P1SEL0
+        bic.b   #0xFF,&P1SEL1
+        bic.b   #0xFF,&P9SEL0
+        bic.b   #0xFF,&P9SEL1
+	; Set P1.1 and P1.2 for input and the rest to output
+	mov.b   #11111001B,&P1DIR
+	; Set all P9 pins for output
+	bis.b   #0xFF,&P9DIR
+	; Activate P1.1 and P1.2 pullup resistors
+        bis.b   #00000110b,&P1REN
+	bis.b   #00000110b,&P1OUT
+	; Enable P1.1 and P1.2 interrupts
+	bis.b	#00000110b,&P1IE
+	; Set interrupt on high to low transitions
+	bis.b	#00000110b,&P1IES
 ; Setup LCD
 	; Enable segments
 	mov.w	#0xFFFF,&LCDCPCTL0
@@ -119,31 +139,9 @@ setupApp:
         mov.w	#2,&LCDCMEMCTL
 	; Turn LCD on
         bis.w	#1,&LCDCCTL0
-; Setup buttons
-	; Set PxSel0 and PxSel1 as digital I/O
-	bic.b   #0xFF,&P1SEL0
-        bic.b   #0xFF,&P1SEL1
-        bic.b   #0xFF,&P9SEL0
-        bic.b   #0xFF,&P9SEL1
-	; Set P1.1 and P1.2 for input and the rest to output
-	mov.b   #11111001B,&P1DIR
-	; Set all P9 pins for output
-	bis.b   #0xFF,&P9DIR
-	; Activate P1.1 and P1.2 pullup resistors
-        mov.b   #00000110b,&P1REN
-	bis.b   #00000110b,&P1OUT
-	; Clear P1.0 and P9.7 output latch
-        bic.b   #0x01,&P1OUT
-        bic.b   #0x80,&P9OUT
-	; Enable P1.1 and P1.2 interrupts
-	bis.b	#00000110b,&P1IE
-	; Set interrupt on high to low transitions
-	bis.b	#00000110b,&P1IES
 ; Turn off LEDS
 	bic.b	#00000001b,&P1OUT
 	bic.b	#10000000b,&P9OUT
-; Unlock GPIO
-	bic.w	#LOCKLPM5,&PM5CTL0
 ; Prevent previous button presses
 	bic.b	#00000110b,&P1IFG
 ; Enable interrupts
@@ -155,17 +153,61 @@ setupApp:
 ; ---------------------------------------------------------------------------------------
 ; Input Handlers
 ; ---------------------------------------------------------------------------------------
+
 portOneISR:
+	;call	#delay
+	bit.b	#00000010b,&P1IFG
+	jnz	interruptAtS1
+	bit.b	#00000100b,&P1IFG
+	jnz	interruptAtS2
+handledISR:
+	reti
+interruptAtS1:
+	bic.b	#00000010b,&P1IFG
+	call	#handleS1
+	jmp	handledISR
+interruptAtS2:
+	bic.b	#00000100b,&P1IFG
+	call	#handleS2
+	jmp	handledISR
+
+
+// Set to clearDisplay for testing purposes
+
+handleS1:
 	ret
 
 
-
+handleS2:
+	mov.w	#1,R15
+endS2:
+	ret
 
 
 ; ---------------------------------------------------------------------------------------
 ; Helper Subroutines
 ; ---------------------------------------------------------------------------------------
 
+// Just for testing purposes, can probably delete later
+clearDisplay:
+	mov.b	#00000000b,&0xA29
+	mov.b	#00000000b,&0xA2A
+
+	mov.b	#00000000b,&0xA25
+	mov.b	#00000000b,&0xA26
+
+	mov.b	#00000000b,&0xA23
+	mov.b	#00000000b,&0xA24
+
+	mov.b	#00000000b,&0xA32
+	mov.b	#00000000b,&0xA33
+
+	mov.b	#00000000b,&0xA2E
+	mov.b	#00000000b,&0xA2F
+
+	mov.b	#00000000b,&0xA27
+	mov.b	#00000000b,&0xA28
+	ret
 
 delay:
 	push.w	R4
@@ -176,5 +218,11 @@ decrementDelay:
 	pop	R4
         ret
 
-fin:	nop
-	end
+
+pickRandomNumber:
+	ret
+
+
+
+
+	END
