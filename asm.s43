@@ -11,8 +11,11 @@
 ; LCD numbers   0     1     2     3     4     5     6     7     8     9     0crss 1cntr 4clsd 7diag
 byteH   db      0xFC, 0x60, 0xDB, 0xF3, 0x67, 0xB7, 0xBF, 0xE0, 0xFF, 0xE7, 0xFC, 0x00, 0x61, 0x83
 byteL   db      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x28, 0x50, 0x20, 0x28
+; Random letter bank
+;randH	db
+;randL	db
 ; ISRs
-org	0xFFDA
+	org	0xFFDA
 	dc16	portOneISR
 
 
@@ -21,22 +24,56 @@ org	0xFFDA
 
 init:   MOV     #SFE(CSTACK), SP        ; set up stack
 
-main:   NOP                             ; main program
-        MOV.W   #WDTPW+WDTHOLD,&WDTCTL  ; Stop watchdog timer
-
-	call	#setup
+main:
+	call	#setupApp
 
 mainloop:
 	call	#displayTitle
-
-
+	; If state is 1 (game), go to game. Else keep displaying the title.
+	cmp	#1,R15
+	jz	game
 	jmp	mainloop
 
-        JMP 	fin
+game:
+	call	#setupGame
+
+gameLoop:
+// game subroutine calls go here
+	call	#displayGameState
+	; If state is 2 (game ended), go to the end loop. Else keep stay in the game loop.
+	cmp	#2,R15
+	jz	endLoop
+	jmp	gameLoop
+
+endLoop:
+// keep displaying the end state + the led depending on game result
+	; If state is 1 (game), go to game. Else keep stay in the end loop.
+	cmp	#1,R15
+	jz	game
+	jmp	endLoop
 
 
 
+; ---------------------------------------------------------------------------------------
+; Gameloop Subroutines
+; ---------------------------------------------------------------------------------------
 
+// TODO: set up initial values
+setupGame:
+
+
+// TODO: display the randomly chosen letter, the current state of the attempt, and the current time
+displayGameState:
+
+
+; ---------------------------------------------------------------------------------------
+; Endloop Subroutines
+; ---------------------------------------------------------------------------------------
+
+
+; ---------------------------------------------------------------------------------------
+; Mainloop Subroutines
+; ---------------------------------------------------------------------------------------
 
 displayTitle:
 	; C
@@ -59,7 +96,12 @@ displayTitle:
 	mov.b	#00000010b,&0xA28
 	ret
 
-setup:
+// TODO split into 3 subroutines for cleanliness (General setup, LCD setup, Button setup)
+setupApp:
+; Stop watchdog timer
+        mov.w   #WDTPW+WDTHOLD,&WDTCTL
+; Setup state
+	mov.w	#0,R15
 ; Setup LCD
 	; Enable segments
 	mov.w	#0xFFFF,&LCDCPCTL0
@@ -78,18 +120,61 @@ setup:
 	; Turn LCD on
         bis.w	#1,&LCDCCTL0
 ; Setup buttons
-// TODO: set up buttons
+	; Set PxSel0 and PxSel1 as digital I/O
+	bic.b   #0xFF,&P1SEL0
+        bic.b   #0xFF,&P1SEL1
+        bic.b   #0xFF,&P9SEL0
+        bic.b   #0xFF,&P9SEL1
+	; Set P1.1 and P1.2 for input and the rest to output
+	mov.b   #11111001B,&P1DIR
+	; Set all P9 pins for output
+	bis.b   #0xFF,&P9DIR
+	; Activate P1.1 and P1.2 pullup resistors
+        mov.b   #00000110b,&P1REN
+	bis.b   #00000110b,&P1OUT
+	; Clear P1.0 and P9.7 output latch
+        bic.b   #0x01,&P1OUT
+        bic.b   #0x80,&P9OUT
+	; Enable P1.1 and P1.2 interrupts
+	bis.b	#00000110b,&P1IE
+	; Set interrupt on high to low transitions
+	bis.b	#00000110b,&P1IES
+; Turn off LEDS
+	bic.b	#00000001b,&P1OUT
+	bic.b	#10000000b,&P9OUT
+; Unlock GPIO
+	bic.w	#LOCKLPM5,&PM5CTL0
+; Prevent previous button presses
+	bic.b	#00000110b,&P1IFG
+; Enable interrupts
+	nop
+	bis.w	#GIE,SR
+	nop
+	ret
 
+; ---------------------------------------------------------------------------------------
+; Input Handlers
+; ---------------------------------------------------------------------------------------
+portOneISR:
 	ret
 
 
 
-; -------------------------------------------
-
-portOneISR:
 
 
+; ---------------------------------------------------------------------------------------
+; Helper Subroutines
+; ---------------------------------------------------------------------------------------
 
+
+delay:
+	push.w	R4
+        mov.w 	#50000,R4
+decrementDelay:
+	dec 	R4
+        jnz 	decrementDelay
+	pop	R4
+        ret
 
 fin:	nop
 	end

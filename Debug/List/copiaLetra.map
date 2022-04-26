@@ -2,7 +2,7 @@
 #                                                                              #
 #      IAR Universal Linker V6.6.2.104                                         #
 #                                                                              #
-#           Link time     =  26/Apr/2022  13:47:08                             #
+#           Link time     =  26/Apr/2022  14:53:12                             #
 #           Target CPU    =  MSP430                                            #
 #           List file     =  C:\Users\pedro\Desktop\copiaLetra\Debug\List\copi #
 #                            aLetra.map                                        #
@@ -11,7 +11,7 @@
 #                            Format: ubrof10                                   #
 #                            UBROF version 10.0.6                              #
 #                            Using library modules for C-SPY (-rt)             #
-#           Command line  =  -f C:\Users\pedro\AppData\Local\Temp\EW2228.tmp   #
+#           Command line  =  -f C:\Users\pedro\AppData\Local\Temp\EW9E29.tmp   #
 #                            (C:\Users\pedro\Desktop\copiaLetra\Debug\Obj\asm. #
 #                            r43                                               #
 #                            -o                                                #
@@ -122,6 +122,7 @@ Absolute parts
 
 Absolute parts
      1C00 - 1C1B
+     FFDA - FFDB
      FFFE - FFFF
            LOCAL                   ADDRESS         
            =====                   =======         
@@ -135,7 +136,7 @@ CSTACK
   Segment part 0. ROOT 
     -------------------------------------------------------------------------
 <CODE> 1 (was CODE)
-  Relative segment, address: 4400 - 4485 (0x86 bytes), align: 1
+  Relative segment, address: 4400 - 4501 (0x102 bytes), align: 1
   Segment part 1. ROOT        Intra module refs:   Absolute parts
            ENTRY                   ADDRESS         REF BY
            =====                   =======         ======
@@ -143,10 +144,18 @@ CSTACK
            LOCAL                   ADDRESS         
            =====                   =======         
            init                    4400 
-           setup                   4458 
-           mainloop                4410 
-           displayTitle            4418 
-           fin                     4484 
+           portOneISR              44F0 
+           setupApp                4466 
+           mainloop                4408 
+           displayTitle            4426 
+           game                    4412 
+           setupGame               4426 
+           gameLoop                4416 
+           displayGameState        4426 
+           endLoop                 4420 
+           delay                   44F2 
+           decrementDelay          44F8 
+           fin                     4500 
 
 
 
@@ -161,8 +170,9 @@ CSTACK
 SEGMENT              SPACE    START ADDRESS   END ADDRESS     SIZE  TYPE  ALIGN
 =======              =====    =============   ===========     ====  ====  =====
 CSTACK                                 2360 - 23FF              A0   rel    1
-<CODE> 1                               4400 - 4485              86   rel    1
+<CODE> 1                               4400 - 4501             102   rel    1
                                        1C00 - 1C1B              1C  aseg  
+                                       FFDA - FFDB               2  aseg  
                                        FFFE - FFFF               2  aseg  
 
                 ****************************************
@@ -171,7 +181,7 @@ CSTACK                                 2360 - 23FF              A0   rel    1
                 *                                      *
                 ****************************************
 
- 134 bytes of CODE memory (+ 30 absolute )
+ 258 bytes of CODE memory (+ 32 absolute )
  160 bytes of DATA memory
 
 Errors: none
