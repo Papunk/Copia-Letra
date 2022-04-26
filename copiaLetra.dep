@@ -5,36 +5,21 @@
     <configuration>
         <name>Debug</name>
         <outputs>
-            <file>$TOOLKIT_DIR$\inc\msp430.h</file>
-            <file>$TOOLKIT_DIR$\inc\msp430fr6989.h</file>
-            <file>$TOOLKIT_DIR$\config\linker\lnk430fr6989.xcl</file>
-            <file>$PROJ_DIR$\asm.s43</file>
-            <file>$PROJ_DIR$\Debug\List\copiaLetra.map</file>
-            <file>$TOOLKIT_DIR$\config\linker\multiplier32.xcl</file>
             <file>$PROJ_DIR$\Debug\Obj\asm.r43</file>
             <file>$PROJ_DIR$\Debug\Exe\copiaLetra.d43</file>
+            <file>$PROJ_DIR$\asm.s43</file>
+            <file>$TOOLKIT_DIR$\config\linker\lnk430fr6989.xcl</file>
+            <file>$PROJ_DIR$\Debug\List\copiaLetra.map</file>
+            <file>$TOOLKIT_DIR$\inc\msp430fr6989.h</file>
+            <file>$TOOLKIT_DIR$\config\linker\multiplier32.xcl</file>
+            <file>$TOOLKIT_DIR$\inc\msp430.h</file>
         </outputs>
-        <file>
-            <name>$PROJ_DIR$\asm.s43</name>
-            <outputs>
-                <tool>
-                    <name>A430</name>
-                    <file> 6</file>
-                </tool>
-            </outputs>
-            <inputs>
-                <tool>
-                    <name>A430</name>
-                    <file> 0 1</file>
-                </tool>
-            </inputs>
-        </file>
         <file>
             <name>[ROOT_NODE]</name>
             <outputs>
                 <tool>
                     <name>XLINK</name>
-                    <file> 7 4</file>
+                    <file> 1 4</file>
                 </tool>
             </outputs>
         </file>
@@ -49,10 +34,28 @@
             <inputs>
                 <tool>
                     <name>XLINK</name>
-                    <file> 2 5 6</file>
+                    <file> 3 6 0</file>
                 </tool>
             </inputs>
         </file>
+        <file>
+            <name>$PROJ_DIR$\asm.s43</name>
+            <outputs>
+                <tool>
+                    <name>A430</name>
+                    <file> 0</file>
+                </tool>
+            </outputs>
+            <inputs>
+                <tool>
+                    <name>A430</name>
+                    <file> 7 5</file>
+                </tool>
+            </inputs>
+        </file>
+        <forcedrebuild>
+            <name>[REBUILD_ALL]</name>
+        </forcedrebuild>
     </configuration>
     <configuration>
         <name>Release</name>
@@ -60,6 +63,9 @@
         <forcedrebuild>
             <name>[MULTI_TOOL]</name>
             <tool>XLINK</tool>
+        </forcedrebuild>
+        <forcedrebuild>
+            <name>[REBUILD_ALL]</name>
         </forcedrebuild>
     </configuration>
 </project>
