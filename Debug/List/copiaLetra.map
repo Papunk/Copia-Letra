@@ -2,7 +2,7 @@
 #                                                                              #
 #      IAR Universal Linker V6.6.2.104                                         #
 #                                                                              #
-#           Link time     =  26/Apr/2022  23:55:50                             #
+#           Link time     =  27/Apr/2022  15:35:56                             #
 #           Target CPU    =  MSP430                                            #
 #           List file     =  C:\Users\Otero.Fremiud\OneDrive\Desktop\Copia-Let #
 #                            ra\Debug\List\copiaLetra.map                      #
@@ -12,7 +12,7 @@
 #                            UBROF version 10.0.6                              #
 #                            Using library modules for C-SPY (-rt)             #
 #           Command line  =  -f                                                #
-#                            C:\Users\OTERO~1.FRE\AppData\Local\Temp\EWAD2E.tm #
+#                            C:\Users\OTERO~1.FRE\AppData\Local\Temp\EW77DC.tm #
 #                            p                                                 #
 #                            (C:\Users\Otero.Fremiud\OneDrive\Desktop\Copia-Le #
 #                            tra\Debug\Obj\asm.r43                             #
@@ -141,7 +141,7 @@ CSTACK
   Segment part 0. ROOT 
     -------------------------------------------------------------------------
 <CODE> 1 (was CODE)
-  Relative segment, address: 4400 - 45DF (0x1e0 bytes), align: 1
+  Relative segment, address: 4400 - 465D (0x25e bytes), align: 1
   Segment part 1. ROOT        Intra module refs:   Absolute parts
            ENTRY                   ADDRESS         REF BY
            =====                   =======         ======
@@ -149,30 +149,38 @@ CSTACK
            LOCAL                   ADDRESS         
            =====                   =======         
            init                    4400 
-           portOneISR              4562 
-           TIMER_A0_ISR            441C 
-           setupApp                44C4 
-           displayTitle            4484 
-           setupTimer              4542 
-           mainloop                4416 
-           game                    4420 
-           showRandomLetter        45D0 
-           setupGame               443C 
-           gameLoop                442C 
-           displayGameState        4440 
-           endLoop                 4436 
-           cronometer              4446 
-           lessThan10              445A 
-           interruptAtS1           4570 
-           interruptAtS2           457A 
-           handledISR              456E 
-           handleS1                4584 
-           handleS2                4586 
-           endS2                   458E 
-           clearDisplay            4590 
-           delay                   45C2 
-           decrementDelay          45C8 
-           lessThan4               45D8 
+           portOneISR              4576 
+           TIMER_A0_ISR            4420 
+           setupApp                44D8 
+           displayTitle            4498 
+           setupTimer              4556 
+           mainloop                441A 
+           game                    442C 
+           noFlashing              4428 
+           showRandomLetter        4606 
+           setupGame               4448 
+           gameLoop                4438 
+           displayGameState        444C 
+           endLoop                 4442 
+           cronometer              4452 
+           lessThan10              446E 
+           delay                   45F8 
+           checkLetters            4616 
+           checkMask               4626 
+           interruptAtS1           4590 
+           interruptAtS2           459A 
+           handledISR              458E 
+           handleS1                45A4 
+           handleS2                45B4 
+           endS1                   45B2 
+           checkSegment            4632 
+           endS2                   45C2 
+           clearDisplay            45C6 
+           decrementDelay          45FE 
+           lessThan4               460E 
+           notEqual                4624 
+           notPassedAll            4630 
+           correctSegment          4654 
 
 
 
@@ -187,7 +195,7 @@ CSTACK
 SEGMENT              SPACE    START ADDRESS   END ADDRESS     SIZE  TYPE  ALIGN
 =======              =====    =============   ===========     ====  ====  =====
 CSTACK                                 2360 - 23FF              A0   rel    1
-<CODE> 1                               4400 - 45DF             1E0   rel    1
+<CODE> 1                               4400 - 465D             25E   rel    1
                                        1C00 - 1C23              24  aseg  
                                        FFDA - FFDB               2  aseg  
                                        FFE8 - FFE9               2  aseg  
@@ -199,7 +207,7 @@ CSTACK                                 2360 - 23FF              A0   rel    1
                 *                                      *
                 ****************************************
 
- 480 bytes of CODE memory (+ 42 absolute )
+ 606 bytes of CODE memory (+ 42 absolute )
  160 bytes of DATA memory
 
 Errors: none
