@@ -13,11 +13,10 @@ byteH   db      0xFC, 0x60, 0xDB, 0xF3, 0x67, 0xB7, 0xBF, 0xE0, 0xFF, 0xE7, 0xFC
 byteL   db      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x28, 0x50, 0x20, 0x28
 ; Rndm letters	P	   F	      J	         G
 randH	db	11001111b, 10001111b, 01111000b, 10111101b
-randL	db	00000000b, 00000000b, 00000000b, 00000000b
 ; ISRs
 	org	0xFFDA                  ; vector for PORT1
-	dc16	portOneISR
-        
+	dc16	PORT_1_ISR
+
         ORG     0FFE8h                  ; vector for TIMER_A0
         DC16    TIMER_A0_ISR            ; set vector for 'TIMER_A0_ISR' routine
 
@@ -26,65 +25,50 @@ randL	db	00000000b, 00000000b, 00000000b, 00000000b
 
 init:   MOV     #SFE(CSTACK), SP        ; set up stack
 
+; States (R15):
+;   - 0 (main)
+;   - 1 (game)
+;   - 2 (results)
 
+
+// TODO use LPM in this state
 main:
-        mov #0,R6
-        mov #0,R7
-        mov #0,R8
-        mov.b #0x80,R9
-        
-        ;call #SetupP1
-        ;call #UnlockGPIO
 	call	#setupApp
 	call	#displayTitle
         call    #setupTimer
 mainloop:
-	; If state is 1 (game), go to game. Else keep displaying the title.
+	; If state is 1 (game), go to game
 	cmp	#1,R15
-	jz	game
-        
+	jeq	game
+	; Else keep displaying the title
 	jmp	mainloop
-        
-TIMER_A0_ISR:
 
-        ;xor.b #BIT7, P9OUT              ; just to toggle green LED each time the
-                                        ; ISR is executed
-        ;cmp #9, intsCounter             ; To toggle red LED each time the 
-                                        ; interrupt counter reaches 10
-        ;jnz noToggle
-        ;xor.b #BIT0, P1OUT              ; Toggle red LED
-                                        ; CCIFG automatically reset when entering
-              	                        ; the ISR so no need to clear the flag
-        ;mov #0, intsCounter
-        ;CMP #0,R15
-        ;JNZ notZero
-        cmp #0,R15
-        JEQ noFlashing
-	xor.b	R9,&0xA25    
-noFlashing:
-        INC R5        
-        reti
-        
+
 game:
-        mov.w	#2,&LCDCMEMCTL //Clear LCD
+	call	#clearDisplay
         call    #showRandomLetter
 	call	#setupGame
-	;call	#clearDisplay	// just for testing
+
 gameLoop:
 // game subroutine calls go here
-	call	#displayGameState
-	; If state is 2 (game ended), go to the end loop. Else keep stay in the game loop.
+	call	#updateCronometer
+	; If state is 2 (game ended), go to the end loop
 	cmp	#2,R15
-	jz	endLoop
+	jeq	results
+	; Else stay in the game loop
 	jmp	gameLoop
 
 
-endLoop:
+// TODO use LPM in this state
+results:
+	call	#showResults
+resultsLoop:
 // keep displaying the end state + the led depending on game result
-	; If state is 1 (game), go to game. Else keep stay in the end loop.
+	; If state is 1 (game), play again
 	cmp	#1,R15
-	jz	game
-	jmp	endLoop
+	jeq	game
+	; Else stay in the end loop
+	jmp	resultsLoop
 
 
 
@@ -92,43 +76,86 @@ endLoop:
 ; Gameloop Subroutines
 ; ---------------------------------------------------------------------------------------
 
-// TODO: set up initial values
 setupGame:
-        mov #0,R5
+	; Counter
+        mov 	#0,R5
+	; Minute
+	mov 	#0,R6
+	; Second (tenths)
+        mov 	#0,R7
+	; Second (hundreadths)
+        mov 	#0,R8
+	; Segment selector
+        mov.b 	#0x80,R9
+	; Turn off LEDs
+	bic.b	#BIT7,P9OUT
+        bic.b 	#BIT0,P1OUT
 	ret
 
-// TODO: display the randomly chosen letter, the current state of the attempt, and the current time
-displayGameState:
-        call #cronometer
-	ret
 
-cronometer:
+showRandomLetter:
         CMP #4,R5
-        JNZ lessThan10
-        mov #0, R5
-        INC R6       
-        CMP #10,R6
-        JNZ lessThan10
-        mov #0, R6
-        INC R7
-        CMP #6,R7
-        JNZ lessThan10
-        mov #0, R7
-        INC R8      
-        
+        JLO lessThan4
+	; Only keep the first three bits (0,1,2)
+        AND #3, R5
+lessThan4:
+	; Display the chosen letter
+	mov.b	randH(R5),&0xA29
+	ret
+
+
+
+updateCronometer:
+        CMP 	#4,R5
+        JNZ 	lessThan10
+        mov 	#0,R5
+        INC 	R6
+        CMP 	#10,R6
+        JNZ 	lessThan10
+        mov 	#0, R6
+        INC 	R7
+        CMP 	#6,R7
+        JNZ	lessThan10
+        mov	#0,R7
+        INC	R8
 lessThan10:
-        mov.b byteH(R8), &0xA32
-        mov.b byteL(R8), &0xA33
-        bis.b #100b,&0xA33
-        mov.b byteH(R7), &0xA2E
-        mov.b byteL(R7), &0xA2F
-        mov.b byteH(R6), &0xA27
-        mov.b byteL(R6), &0xA28
+	; Minute
+        mov.b 	byteH(R8),&0xA32
+        mov.b 	byteL(R8),&0xA33
+	; Separator
+        bis.b 	#100b,&0xA33
+	; Second (tenths)
+        mov.b 	byteH(R7),&0xA2E
+        mov.b 	byteL(R7),&0xA2F
+	; Second (hundreadths)
+        mov.b 	byteH(R6),&0xA27
+        mov.b 	byteL(R6),&0xA28
         ret
 
+
 ; ---------------------------------------------------------------------------------------
-; Endloop Subroutines
+; Resultsloop Subroutines
 ; ---------------------------------------------------------------------------------------
+
+
+
+showResults:
+	cmp.b 	&0xA29,&0xA25
+	jne	loss
+victory:
+	; Heart
+	mov.b	#00000100b,&0xA22
+	; Green LED
+	bis.b	#BIT7,P9OUT
+	jmp	showedResults
+loss:
+	; Exclamation mark
+	mov.b	#000000001b,&0xA22
+	; Red LED
+        bis.b 	#BIT0,P1OUT
+showedResults:
+	ret
+
 
 
 ; ---------------------------------------------------------------------------------------
@@ -168,7 +195,7 @@ setupApp:
         bic.b   #0xFF,&P1SEL1
         bic.b   #0xFF,&P9SEL0
         bic.b   #0xFF,&P9SEL1
-        
+
 
 	; Set P1.1 and P1.2 for input and the rest to output
 	mov.b   #11111001B,&P1DIR
@@ -209,8 +236,9 @@ setupApp:
 	bis.w	#GIE,SR
 	nop
         ret
-        
-setupTimer:       
+
+
+setupTimer:
         mov     #CCIE, &TA0CCTL0        ; Enable TACCR0 interrupt
 
         mov     #TASSEL_2+MC_1+ID_3, &TA0CTL  ;Set timer according to next table
@@ -238,24 +266,44 @@ setupTimer:
         bis     #GIE, SR           ; Enable interrupts and enter Low Power mode 0
                                         ; that doesn't disable timers
         nop                             ; Required after enabling interrupts
-        ;nop                             ; Required after enabling interrupts      
+        ;nop                             ; Required after enabling interrupts
 	ret
 
 ; ---------------------------------------------------------------------------------------
-; Input Handlers
+; ISRs / Input Handlers
 ; ---------------------------------------------------------------------------------------
 
-portOneISR:
+
+TIMER_A0_ISR:
+
+        ;xor.b #BIT7, P9OUT              ; just to toggle green LED each time the
+                                        ; ISR is executed
+        ;cmp #9, intsCounter             ; To toggle red LED each time the
+                                        ; interrupt counter reaches 10
+        ;jnz noToggle
+        ;xor.b #BIT0, P1OUT              ; Toggle red LED
+                                        ; CCIFG automatically reset when entering
+              	                        ; the ISR so no need to clear the flag
+        ;mov #0, intsCounter
+        ;CMP #0,R15
+        ;JNZ notZero
+        cmp 	#0,R15
+        JEQ 	noFlashing
+	xor.b	R9,&0xA25
+noFlashing:
+        INC 	R5
+        reti
+
+
+
+PORT_1_ISR:
 	call	#delay
-        call    #checkLetters
-        call    #checkMask
-        
+
 	bit.b	#00000010b,&P1IFG
 	jnz	interruptAtS1
 	bit.b	#00000100b,&P1IFG
 	jnz	interruptAtS2
-handledISR:
-	reti
+	jmp	handledISR
 interruptAtS1:
 	bic.b	#00000010b,&P1IFG
 	call	#handleS1
@@ -264,42 +312,54 @@ interruptAtS2:
 	bic.b	#00000100b,&P1IFG
 	call	#handleS2
 	jmp	handledISR
+handledISR:
+	reti
 
 
-// Set to clearDisplay for testing purposes
+
 
 handleS1:
-        CMP #1,R15
-        JNZ endS1
-        
-        bic.b R9,&0xA25
-        call    #checkSegment
-
-        rra R9
-        
+	; If state is 0 (main), do nothing
+	cmp	#0,R15
+	jeq	endS1
+	; If state is 1 (game), skip the currentSegment
+        cmp	#1,R15
+        jeq 	skipCurrentSegment
+	; If state is 2 (results), play again
+	cmp	#2,R15
+	jeq	playAgain
+	; Else, do nothing
+	jmp	endS1
+skipCurrentSegment:
+        bic.b 	R9,&0xA25
+	rra 	R9
+	call	#checkIfDone
+	jmp	endS1
+playAgain:
+	call	#startTimer
+	mov.w	#1,R15
 endS1:
 	ret
 
 
+
 handleS2:
-        CMP #1,R15
-        JNZ endS2
-        
-        bis.b R9,&0xA25
-        call    #checkSegment
-
-
-        rra R9
-
-        ;nop				; required before enabling interrupts
-
-        ;bis     #GIE+LPM0, SR           ; Enable interrupts and enter Low Power mode 0
-                                        ; that doesn't disable timers
-        ;bis     #GIE, SR           ; Enable interrupts and enter Low Power mode 0
-                                        ; that doesn't disable timers
-        ;nop                             ; Required after enabling interrupts
+	; If state is 0 (main), set the state to 0 (game)
+	cmp	#0,R15
+	jeq	startGame
+	; If state is 1 (game), select the current segment
+	cmp	#1,R15
+	jeq	selectCurrentSegment
+	; Else, do nothing
+	jmp	endS2
+startGame:
+	mov.w	#1,R15
+	jmp	endS2
+selectCurrentSegment:
+        bis.b 	R9,&0xA25
+        rra 	R9
+	call	#checkIfDone
 endS2:
-        mov.w	#1,R15
 	ret
 
 
@@ -307,30 +367,21 @@ endS2:
 ; Helper Subroutines
 ; ---------------------------------------------------------------------------------------
 
-// Just for testing purposes, can probably delete later
 clearDisplay:
-	mov.b	#00000000b,&0xA29
-	mov.b	#00000000b,&0xA2A
+        mov.w	#2,&LCDCMEMCTL
+	ret
 
-	mov.b	#00000000b,&0xA25
-	mov.b	#00000000b,&0xA26
+stopTimer:
+	bic 	#CCIE,&TA0CCTL0
+	ret
 
-	mov.b	#00000000b,&0xA23
-	mov.b	#00000000b,&0xA24
-
-	mov.b	#00000000b,&0xA32
-	mov.b	#00000000b,&0xA33
-
-	mov.b	#00000000b,&0xA2E
-	mov.b	#00000000b,&0xA2F
-
-	mov.b	#00000000b,&0xA27
-	mov.b	#00000000b,&0xA28
+startTimer:
+	mov 	#CCIE,&TA0CCTL0
 	ret
 
 delay:
 	push.w	R4
-        mov.w 	#50000,R4
+        mov.w 	#0xFFFF,R4
 decrementDelay:
 	dec 	R4
         jnz 	decrementDelay
@@ -338,48 +389,61 @@ decrementDelay:
         ret
 
 
-showRandomLetter:
-        CMP #4,R5
-        JLO lessThan4
-        AND #3, R5 
-lessThan4:
-        mov.b	randH(R5),&0xA29
-	ret
 ;_______________________________________________________
 
-checkLetters:
-       cmp &0xA29, &0xA25
-       JNE notEqual
-       bic #CCIE, &TA0CCTL0
-notEqual:
+
+checkIfDone:
+	cmp	#0,R9
+	jeq	gameIsDone
+	cmp 	&0xA29,&0xA25
+	jne	checked
+gameIsDone:
+	call	#stopTimer
+	mov.w	#2,R15
+checked:
         ret
-;_______________________________________________________
-    
-checkMask:
-       cmp #0, R9
-       JNE notEqual
-       bic #CCIE, &TA0CCTL0
-notPassedAll:
-        ret
-;_______________________________________________________
 
-checkSegment:
-       push.b &0xA29
-       push.b &0xA25
-       
-       inv.b R9
-       bic.b R9, &0xA29
-       bic.b R9, &0xA25
-       inv.b R9
-       
-       cmp.b &0xA29, &0xA25
-       JEQ correctSegment
-       bic #CCIE, &TA0CCTL0
-       
-correctSegment:
 
-       pop.b &0xA25
-       pop.b &0xA29
-       ret
 
 	END
+
+
+
+
+; Leaving just in case
+;_______________________________________________________
+
+;checkLetters:
+;       cmp &0xA29, &0xA25
+;       JNE notEqual
+;       bic #CCIE, &TA0CCTL0
+;notEqual:
+;        ret
+;_______________________________________________________
+
+;checkMask:
+;       cmp #0, R9
+ ;      JNE notEqual
+ ;      bic #CCIE, &TA0CCTL0
+;notPassedAll:
+ ;       ret
+;_______________________________________________________
+
+;checkSegment:
+  ;     push.b &0xA29
+  ;     push.b &0xA25
+
+  ;     inv.b R9
+   ;    bic.b R9, &0xA29
+    ;   bic.b R9, &0xA25
+     ;  inv.b R9
+
+  ;     cmp.b &0xA29, &0xA25
+   ;    JEQ correctSegment
+    ;   bic #CCIE, &TA0CCTL0
+
+;correctSegment:
+
+ ;      pop.b &0xA25
+  ;     pop.b &0xA29
+   ;    ret
