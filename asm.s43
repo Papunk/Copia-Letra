@@ -11,11 +11,11 @@
 ; LCD numbers   0     1     2     3     4     5     6     7     8     9     0crss 1cntr 4clsd 7diag
 byteH   db      0xFC, 0x60, 0xDB, 0xF3, 0x67, 0xB7, 0xBF, 0xE0, 0xFF, 0xE7, 0xFC, 0x00, 0x61, 0x83
 byteL   db      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x28, 0x50, 0x20, 0x28
-; Rndm letters	P	   F	      J	         G
+; Letter bank	P	   F	      J	         G
 randH	db	11001111b, 10001111b, 01111000b, 10111101b
-; ISRs
+; ISR Vectors
 	org	0xFFDA                  ; vector for PORT1
-	dc16	PORT_1_ISR
+	dc16	PORT_1_ISR		; set vector for 'PORT_1_ISR' routine
 
         ORG     0FFE8h                  ; vector for TIMER_A0
         DC16    TIMER_A0_ISR            ; set vector for 'TIMER_A0_ISR' routine
@@ -25,17 +25,13 @@ randH	db	11001111b, 10001111b, 01111000b, 10111101b
 
 init:   MOV     #SFE(CSTACK), SP        ; set up stack
 
-; States (R15):
-;   - 0 (main)
-;   - 1 (game)
-;   - 2 (results)
 
-
-// TODO use LPM in this state
+; This section displays the title until the game is started
 main:
 	call	#setupApp
 	call	#displayTitle
         call    #setupTimer
+	call	#enableLPM
 mainloop:
 	; If state is 1 (game), go to game
 	cmp	#1,R15
@@ -44,13 +40,12 @@ mainloop:
 	jmp	mainloop
 
 
+; This section displays the state of the game until it finishes
 game:
 	call	#clearDisplay
         call    #showRandomLetter
 	call	#setupGame
-
 gameLoop:
-// game subroutine calls go here
 	call	#updateCronometer
 	; If state is 2 (game ended), go to the end loop
 	cmp	#2,R15
@@ -59,11 +54,11 @@ gameLoop:
 	jmp	gameLoop
 
 
-// TODO use LPM in this state
+; This section displays the result until the game is restarted
 results:
 	call	#showResults
+	call	#enableLPM
 resultsLoop:
-// keep displaying the end state + the led depending on game result
 	; If state is 1 (game), play again
 	cmp	#1,R15
 	jeq	game
@@ -72,96 +67,18 @@ resultsLoop:
 
 
 
-; ---------------------------------------------------------------------------------------
-; Gameloop Subroutines
-; ---------------------------------------------------------------------------------------
 
-setupGame:
-	; Counter
-        mov 	#0,R5
-	; Minute
-	mov 	#0,R6
-	; Second (tenths)
-        mov 	#0,R7
-	; Second (hundreadths)
-        mov 	#0,R8
-	; Segment selector
-        mov.b 	#0x80,R9
-	; Turn off LEDs
-	bic.b	#BIT7,P9OUT
-        bic.b 	#BIT0,P1OUT
-	ret
-
-
-showRandomLetter:
-        CMP #4,R5
-        JLO lessThan4
-	; Only keep the first three bits (0,1,2)
-        AND #3, R5
-lessThan4:
-	; Display the chosen letter
-	mov.b	randH(R5),&0xA29
-	ret
-
-
-
-updateCronometer:
-        CMP 	#4,R5
-        JNZ 	lessThan10
-        mov 	#0,R5
-        INC 	R6
-        CMP 	#10,R6
-        JNZ 	lessThan10
-        mov 	#0, R6
-        INC 	R7
-        CMP 	#6,R7
-        JNZ	lessThan10
-        mov	#0,R7
-        INC	R8
-lessThan10:
-	; Minute
-        mov.b 	byteH(R8),&0xA32
-        mov.b 	byteL(R8),&0xA33
-	; Separator
-        bis.b 	#100b,&0xA33
-	; Second (tenths)
-        mov.b 	byteH(R7),&0xA2E
-        mov.b 	byteL(R7),&0xA2F
-	; Second (hundreadths)
-        mov.b 	byteH(R6),&0xA27
-        mov.b 	byteL(R6),&0xA28
-        ret
-
-
-; ---------------------------------------------------------------------------------------
-; Resultsloop Subroutines
-; ---------------------------------------------------------------------------------------
-
-
-
-showResults:
-	cmp.b 	&0xA29,&0xA25
-	jne	loss
-victory:
-	; Heart
-	mov.b	#00000100b,&0xA22
-	; Green LED
-	bis.b	#BIT7,P9OUT
-	jmp	showedResults
-loss:
-	; Exclamation mark
-	mov.b	#000000001b,&0xA22
-	; Red LED
-        bis.b 	#BIT0,P1OUT
-showedResults:
-	ret
-
-
-
-; ---------------------------------------------------------------------------------------
+; =======================================================================================
 ; Mainloop Subroutines
-; ---------------------------------------------------------------------------------------
+; =======================================================================================
 
+
+; _______________________________________________________________________________________
+; Purpose: Subroutine to show the app name in display
+; Preconditions: LCD is enabled and activated
+; Postconditions: Display characters will show the application title (CPLETR)
+; Arguments: None
+; Author, date of creation: Pedro Pagán
 displayTitle:
 	; C
 	mov.b	#10011100b,&0xA29
@@ -183,7 +100,13 @@ displayTitle:
 	mov.b	#00000010b,&0xA28
 	ret
 
-// TODO split into 3 subroutines for cleanliness (General setup, LCD setup, Button setup)
+
+; _______________________________________________________________________________________
+; Purpose:
+; Preconditions:
+; Postconditions:
+; Arguments: None
+; Author, date of creation:
 setupApp:
 ; Stop watchdog timer
         mov.w   #WDTPW+WDTHOLD,&WDTCTL
@@ -195,8 +118,6 @@ setupApp:
         bic.b   #0xFF,&P1SEL1
         bic.b   #0xFF,&P9SEL0
         bic.b   #0xFF,&P9SEL1
-
-
 	; Set P1.1 and P1.2 for input and the rest to output
 	mov.b   #11111001B,&P1DIR
 	; Set all P9 pins for output
@@ -225,7 +146,6 @@ setupApp:
         mov.w	#2,&LCDCMEMCTL
 	; Turn LCD on
         bis.w	#1,&LCDCCTL0
-
 ; Turn off LEDS
 	bic.b	#00000001b,&P1OUT
 	bic.b	#10000000b,&P9OUT
@@ -238,6 +158,12 @@ setupApp:
         ret
 
 
+; _______________________________________________________________________________________
+; Purpose:
+; Preconditions:
+; Postconditions:
+; Arguments: None
+; Author, date of creation:
 setupTimer:
         mov     #CCIE, &TA0CCTL0        ; Enable TACCR0 interrupt
 
@@ -269,24 +195,133 @@ setupTimer:
         ;nop                             ; Required after enabling interrupts
 	ret
 
-; ---------------------------------------------------------------------------------------
+
+
+
+; =======================================================================================
+; Gameloop Subroutines
+; =======================================================================================
+
+
+; _______________________________________________________________________________________
+; Purpose:
+; Preconditions:
+; Postconditions:
+; Arguments: None
+; Author, date of creation:
+setupGame:
+	; Counter
+        mov 	#0,R5
+	; Minute
+	mov 	#0,R6
+	; Second (tenths)
+        mov 	#0,R7
+	; Second (hundreadths)
+        mov 	#0,R8
+	; Segment selector
+        mov.b 	#0x80,R9
+	; Turn off LEDs
+	bic.b	#BIT7,P9OUT
+        bic.b 	#BIT0,P1OUT
+	ret
+
+
+; _______________________________________________________________________________________
+; Purpose:
+; Preconditions:
+; Postconditions:
+; Arguments: None
+; Author, date of creation:
+showRandomLetter:
+        CMP #4,R5
+        JLO lessThan4
+	; Only keep the first three bits (0,1,2)
+        AND #3, R5
+lessThan4:
+	; Display the chosen letter
+	mov.b	randH(R5),&0xA29
+	ret
+
+
+; _______________________________________________________________________________________
+; Purpose:
+; Preconditions:
+; Postconditions:
+; Arguments: None
+; Author, date of creation:
+updateCronometer:
+        CMP 	#4,R5
+        JNZ 	lessThan10
+        mov 	#0,R5
+        INC 	R6
+        CMP 	#10,R6
+        JNZ 	lessThan10
+        mov 	#0, R6
+        INC 	R7
+        CMP 	#6,R7
+        JNZ	lessThan10
+        mov	#0,R7
+        INC	R8
+lessThan10:
+	; Minute
+        mov.b 	byteH(R8),&0xA32
+        mov.b 	byteL(R8),&0xA33
+	; Separator
+        bis.b 	#100b,&0xA33
+	; Second (tenths)
+        mov.b 	byteH(R7),&0xA2E
+        mov.b 	byteL(R7),&0xA2F
+	; Second (hundreadths)
+        mov.b 	byteH(R6),&0xA27
+        mov.b 	byteL(R6),&0xA28
+        ret
+
+
+
+
+; =======================================================================================
+; Resultsloop Subroutines
+; =======================================================================================
+
+
+; _______________________________________________________________________________________
+; Purpose:
+; Preconditions:
+; Postconditions:
+; Arguments: None
+; Author, date of creation:
+showResults:
+	cmp.b 	&0xA29,&0xA25
+	jne	loss
+victory:
+	; Heart
+	mov.b	#00000100b,&0xA22
+	; Green LED
+	bis.b	#BIT7,P9OUT
+	jmp	showedResults
+loss:
+	; Exclamation mark
+	mov.b	#000000001b,&0xA22
+	; Red LED
+        bis.b 	#BIT0,P1OUT
+showedResults:
+	ret
+
+
+
+
+; =======================================================================================
 ; ISRs / Input Handlers
-; ---------------------------------------------------------------------------------------
+; =======================================================================================
 
 
+; _______________________________________________________________________________________
+; Purpose:
+; Preconditions:
+; Postconditions:
+; Arguments: None
+; Author, date of creation:
 TIMER_A0_ISR:
-
-        ;xor.b #BIT7, P9OUT              ; just to toggle green LED each time the
-                                        ; ISR is executed
-        ;cmp #9, intsCounter             ; To toggle red LED each time the
-                                        ; interrupt counter reaches 10
-        ;jnz noToggle
-        ;xor.b #BIT0, P1OUT              ; Toggle red LED
-                                        ; CCIFG automatically reset when entering
-              	                        ; the ISR so no need to clear the flag
-        ;mov #0, intsCounter
-        ;CMP #0,R15
-        ;JNZ notZero
         cmp 	#0,R15
         JEQ 	noFlashing
 	xor.b	R9,&0xA25
@@ -295,7 +330,12 @@ noFlashing:
         reti
 
 
-
+; _______________________________________________________________________________________
+; Purpose:
+; Preconditions:
+; Postconditions:
+; Arguments: None
+; Author, date of creation:
 PORT_1_ISR:
 	call	#delay
 
@@ -303,21 +343,28 @@ PORT_1_ISR:
 	jnz	interruptAtS1
 	bit.b	#00000100b,&P1IFG
 	jnz	interruptAtS2
-	jmp	handledISR
+	jmp	disableLPM
 interruptAtS1:
 	bic.b	#00000010b,&P1IFG
 	call	#handleS1
-	jmp	handledISR
+	jmp	disableLPM
 interruptAtS2:
 	bic.b	#00000100b,&P1IFG
 	call	#handleS2
-	jmp	handledISR
-handledISR:
+	jmp	disableLPM
+disableLPM:
+	pop	R14
+	bic	#LPM0,R14
+	push.w	R14
 	reti
 
 
-
-
+; _______________________________________________________________________________________
+; Purpose:
+; Preconditions:
+; Postconditions:
+; Arguments: None
+; Author, date of creation:
 handleS1:
 	; If state is 0 (main), do nothing
 	cmp	#0,R15
@@ -343,7 +390,12 @@ endS1:
 	ret
 
 
-
+; _______________________________________________________________________________________
+; Purpose:
+; Preconditions:
+; Postconditions:
+; Arguments: None
+; Author, date of creation:
 handleS2:
 	; If state is 0 (main), set the state to 0 (game)
 	cmp	#0,R15
@@ -365,10 +417,19 @@ endS2:
 	ret
 
 
-; ---------------------------------------------------------------------------------------
-; Helper Subroutines
-; ---------------------------------------------------------------------------------------
 
+
+; =======================================================================================
+; Helper Subroutines
+; =======================================================================================
+
+
+; _______________________________________________________________________________________
+; Purpose:
+; Preconditions:
+; Postconditions:
+; Arguments: None
+; Author, date of creation:
 clearDisplay:
         mov.w	#2,&LCDCMEMCTL
 	ret
@@ -381,6 +442,25 @@ startTimer:
 	mov 	#CCIE,&TA0CCTL0
 	ret
 
+
+; _______________________________________________________________________________________
+; Purpose:
+; Preconditions:
+; Postconditions:
+; Arguments: None
+; Author, date of creation:
+enableLPM:
+	nop
+	bis	#LPM0,SR
+	nop
+	ret
+
+; _______________________________________________________________________________________
+; Purpose:
+; Preconditions:
+; Postconditions:
+; Arguments: None
+; Author, date of creation:
 delay:
 	push.w	R4
         mov.w 	#0xFFFF,R4
@@ -391,8 +471,12 @@ decrementDelay:
         ret
 
 
-;_______________________________________________________
-
+; _______________________________________________________________________________________
+; Purpose:
+; Preconditions:
+; Postconditions:
+; Arguments: None
+; Author, date of creation:
 checkSegment:
 	push.b	&0xA29
 	push.b	&0xA25
@@ -411,9 +495,14 @@ correctSegment:
 	pop.b	&0xA25
 	pop.b	&0xA29
 	ret
-;_______________________________________________________
 
 
+; _______________________________________________________________________________________
+; Purpose:
+; Preconditions:
+; Postconditions:
+; Arguments: None
+; Author, date of creation:
 checkIfDone:
 	; If the final segment has been selected, game is done
 	cmp	#0,R9
@@ -429,6 +518,7 @@ gameIsDone:
 	mov.w	#2,R15
 checked:
         ret
+
 
 
 
