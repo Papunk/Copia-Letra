@@ -332,6 +332,7 @@ handleS1:
 	jmp	endS1
 skipCurrentSegment:
         bic.b 	R9,&0xA25
+	call	#checkSegment
 	rra 	R9
 	call	#checkIfDone
 	jmp	endS1
@@ -357,6 +358,7 @@ startGame:
 	jmp	endS2
 selectCurrentSegment:
         bis.b 	R9,&0xA25
+	call	#checkSegment
         rra 	R9
 	call	#checkIfDone
 endS2:
@@ -391,12 +393,37 @@ decrementDelay:
 
 ;_______________________________________________________
 
+checkSegment:
+	push.b	&0xA29
+	push.b	&0xA25
+
+	inv.b	R9
+	bic.b	R9, &0xA29
+	bic.b	R9, &0xA25
+	inv.b	R9
+
+	cmp.b	&0xA29, &0xA25
+	JEQ	correctSegment
+	call	#stopTimer
+	mov.w	#2,R15
+
+correctSegment:
+	pop.b	&0xA25
+	pop.b	&0xA29
+	ret
+;_______________________________________________________
+
 
 checkIfDone:
+	; If the final segment has been selected, game is done
 	cmp	#0,R9
 	jeq	gameIsDone
+	; If the two letters are equal, game is done
 	cmp 	&0xA29,&0xA25
-	jne	checked
+	jeq	gameIsDone
+	; Else, check if the current segment determines the game outcome
+	;call	#checkSegment
+	jmp	checked
 gameIsDone:
 	call	#stopTimer
 	mov.w	#2,R15
@@ -406,44 +433,3 @@ checked:
 
 
 	END
-
-
-
-
-; Leaving just in case
-;_______________________________________________________
-
-;checkLetters:
-;       cmp &0xA29, &0xA25
-;       JNE notEqual
-;       bic #CCIE, &TA0CCTL0
-;notEqual:
-;        ret
-;_______________________________________________________
-
-;checkMask:
-;       cmp #0, R9
- ;      JNE notEqual
- ;      bic #CCIE, &TA0CCTL0
-;notPassedAll:
- ;       ret
-;_______________________________________________________
-
-;checkSegment:
-  ;     push.b &0xA29
-  ;     push.b &0xA25
-
-  ;     inv.b R9
-   ;    bic.b R9, &0xA29
-    ;   bic.b R9, &0xA25
-     ;  inv.b R9
-
-  ;     cmp.b &0xA29, &0xA25
-   ;    JEQ correctSegment
-    ;   bic #CCIE, &TA0CCTL0
-
-;correctSegment:
-
- ;      pop.b &0xA25
-  ;     pop.b &0xA29
-   ;    ret
